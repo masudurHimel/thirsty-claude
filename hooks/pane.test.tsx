@@ -88,7 +88,7 @@ test('a value an earlier version stored is declined', async ($, on) => {
   await ui.unmount()
 })
 
-test('/thirsty_claude reopens the pane', async ($, on) => {
+test('the pane opens on /thirsty_claude and not at session start', async ($, on) => {
   let opened = 0
   on('command.register', () => ({ value: { command: 'thirsty_claude' } }))
   on('ui.open', () => {
@@ -99,6 +99,8 @@ test('/thirsty_claude reopens the pane', async ($, on) => {
   on('session.start', (_, e) => ({ cwd: e.cwd }))
 
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(opened).toBe(0)
+
   const ran = await $.command.run({
     command: 'thirsty_claude',
     args: '',
@@ -106,8 +108,17 @@ test('/thirsty_claude reopens the pane', async ($, on) => {
     presentation: { isFullscreen: false, columns: 120 },
   })
 
-  expect(ran.text).toBe('Thirsty Claude is back.')
-  expect(opened).toBe(2)
+  expect(ran.text).toBe('Thirsty Claude is open.')
+  expect(opened).toBe(1)
+})
+
+test('the pane says how accurate it is and links to the method', async $ => {
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+
+  expect((await ui.find({ type: 'Text', text: /accurate/ }))?.text).toBe('estimate: about 60% accurate')
+  const how = await ui.find({ type: 'Link' })
+  expect(how?.text).toBe('Want to know how this is measured?')
+  await ui.unmount()
 })
 
 test('a response is weighted by token kind and rated by model', async () => {
