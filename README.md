@@ -21,19 +21,49 @@ The desktop app draws an animated SVG. A terminal session gets a box-character b
 
 ## Install
 
-At the prompt of a terminal session:
+One install at the user scope covers every way you run Claude Code on that machine: the terminal, the desktop app and the IDE extensions all load the same plugins.
+
+### Terminal
+
+At the prompt of a Claude Code session:
 
 ```
 /plugin install thirsty_claude --marketplace masudurHimel/thirsty-claude
 ```
 
-Answer `y` to add the marketplace, then pick a scope (user is the usual one). From a shell:
+Answer `y` to add the marketplace, then pick a scope; user is the usual one. The mod is active in that session at once.
+
+### Shell
+
+From any shell, without opening a session:
 
 ```bash
 claude plugin install thirsty_claude --marketplace masudurHimel/thirsty-claude
 ```
 
-In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `masudurHimel/thirsty-claude`, then Add plugin.
+This is the route to use in scripts and on machines you set up by hand. Sessions started afterwards load it; a running one needs `/reload-plugins`.
+
+### Desktop app (macOS, Windows)
+
+The `/plugin` command does not run in the desktop app's Code tab. Instead:
+
+1. Click **+** next to the prompt box, then **Plugins**.
+2. Choose **Add marketplace** and enter `masudurHimel/thirsty-claude`.
+3. Choose **Add plugin** and pick `thirsty_claude`.
+
+Or run the shell command above and then `/reload-plugins` in the open session.
+
+### VS Code and JetBrains
+
+The extensions run the same Claude Code engine and read the same user-scope plugins. Install with the shell command above, then start a new session in the IDE or run `/reload-plugins` in an open one.
+
+### Verifying
+
+```bash
+claude plugin list
+```
+
+should show `thirsty_claude@thirsty-claude` with status enabled. In a session, `/thirsty_claude` opens the pane.
 
 ### Updating
 
