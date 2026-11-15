@@ -1,0 +1,12 @@
+{
+  "name": "thirsty-claude",
+  "owner": { "name": "masudurHimel" },
+  "description": "Thirsty Claude: a water-footprint bucket beside the Claude Code chat.",
+  "plugins": [
+    {
+      "name": "thirsty_claude",
+      "source": "./",
+      "description": "A pane beside the chat: a tap dripping into a 1 L bucket that shows the water this session's tokens cost."
+    }
+  ]
+}
