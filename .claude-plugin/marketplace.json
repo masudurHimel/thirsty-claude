@@ -6,7 +6,11 @@
     {
       "name": "thirsty_claude",
       "source": "./",
-      "description": "A pane beside the chat: a tap dripping into a 1 L bucket that shows the water this session's tokens cost."
+      "description": "A pane beside the chat: a tap dripping into a 1 L bucket that shows the water this session's tokens cost.",
+      "version": "0.7.0",
+      "author": { "name": "masudurHimel" },
+      "category": "productivity",
+      "keywords": ["water", "footprint", "sustainability", "tokens", "pane"]
     }
   ]
 }

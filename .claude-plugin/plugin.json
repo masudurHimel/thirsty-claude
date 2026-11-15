@@ -1,9 +1,11 @@
 {
   "name": "thirsty_claude",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A pane beside the chat: a tap dripping into a 1 L bucket that shows the water this session's tokens cost.",
   "author": { "name": "masudurHimel" },
   "license": "MIT",
+  "homepage": "https://github.com/masudurHimel/thirsty-claude",
   "repository": "https://github.com/masudurHimel/thirsty-claude",
+  "keywords": ["water", "footprint", "sustainability", "tokens", "pane", "claude-code"],
   "types": "./types/index.d.ts"
 }

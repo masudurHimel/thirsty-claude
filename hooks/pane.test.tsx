@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
 
-import { microlitresOf, rateFor } from './register'
+import { ONSITE_SHARE, REF_RATE_UL, WATER_L_PER_KWH, cacheReadWeightFor, microlitresOf, rateFor } from './register'
 
 const PANE = {
   plugin: 'thirsty_claude',
@@ -121,6 +122,31 @@ test('the pane states its range and links to the method', async $ => {
   await ui.unmount()
 })
 
+test('the water factor and the reference rate follow from their parts', () => {
+  // 0.5 on-site + 1.12 x 3.13 from the grid is about 4.0 L per kWh, of which
+  // an eighth is used at the site. 0.5 Wh per thousand weighted tokens at
+  // that factor is about 2 µL per token for a $20-per-million-output model.
+  expect(Math.round(WATER_L_PER_KWH * 100) / 100).toBe(4.01)
+  expect(Math.round(ONSITE_SHARE * 1000) / 1000).toBe(0.125)
+  expect(Math.round(REF_RATE_UL * 100) / 100).toBe(2)
+})
+
+test('a model is rated by its output price and reads its cache at its own ratio', () => {
+  const ul = (model: string) => Math.round(rateFor(model) * 1000) / 1000
+  // Sonnet 5.5 at $10 is half the $20 reference; Fable 5.1 at $50 is 2.5x it.
+  expect(ul('claude-sonnet-5-5')).toBe(1.001)
+  expect(ul('claude-opus-5-5')).toBe(2.003)
+  expect(ul('claude-fable-5-1')).toBe(5.007)
+  expect(ul('claude-haiku-5-5')).toBe(0.05)
+  expect(ul('claude-opus-4-5-20251101')).toBe(2.504)
+  expect(ul('something-unknown')).toBe(2.003)
+  expect(cacheReadWeightFor('claude-sonnet-5-5')).toBe(0.05)
+  expect(cacheReadWeightFor('claude-opus-5-5')).toBe(0.05)
+  expect(cacheReadWeightFor('claude-fable-5-1')).toBe(0.025)
+  expect(cacheReadWeightFor('claude-sonnet-4-6')).toBe(0.1)
+  expect(cacheReadWeightFor('something-unknown')).toBe(0.1)
+})
+
 test('a response is weighted by token kind and rated by model', async () => {
   // A cache-heavy step: 100k cached, 1k fresh, 2k written, 500 generated.
   const step = {
@@ -129,11 +155,32 @@ test('a response is weighted by token kind and rated by model', async () => {
     cache_creation_input_tokens: 2000,
     cache_read_input_tokens: 100_000,
   }
-  // Weighted: 1000 + 2500 + 2200 + 10000 = 15,700 tokens.
-  expect(microlitresOf(step, 'claude-sonnet-5-5')).toBe(15_700 * 2)
-  expect(microlitresOf(step, 'claude-haiku-5-5')).toBe(15_700 * 0.5)
-  expect(microlitresOf(step, 'claude-opus-5-5')).toBe(15_700 * 5)
-  expect(rateFor('something-unknown')).toBe(2)
+  // On Sonnet 5.5, weighted: 1000 + 2500 + 2500 + 5000 = 11,000 tokens, about
+  // 11 mL. On a model that reads its cache at a tenth: 16,000.
+  expect(microlitresOf(step, 'claude-sonnet-5-5')).toBe(11_000 * rateFor('claude-sonnet-5-5'))
+  expect(Math.round(microlitresOf(step, 'claude-sonnet-5-5') / 1000)).toBe(11)
+  expect(microlitresOf(step, 'claude-sonnet-4-6')).toBe(16_000 * rateFor('claude-sonnet-4-6'))
+  // On Fable, which reads its cache at a fortieth: 1000 + 2500 + 2500 + 2500 = 8,500.
+  expect(microlitresOf(step, 'claude-fable-5-1')).toBe(8_500 * rateFor('claude-fable-5-1'))
+})
+
+test('the pane shows the share used at the data centre itself', async ($, on) => {
+  on('state.get', () => ({
+    value: {
+      value: {
+        shape: 'usage-3',
+        value: { turnId: 't1', turnUl: 0, sessionUl: 1_000_000, liveUl: 0, busy: false },
+      },
+      version: 3,
+    },
+  }))
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+
+  // An eighth of a litre.
+  expect((await ui.find({ type: 'Text', text: /On-site/ }))?.text).toBe('On-site only')
+  expect((await ui.find({ type: 'Text', text: /125 mL/ }))?.text).toBe('≈ 125 mL')
+  await ui.unmount()
 })
 
 test('the tap keeps dripping while a subagent works after the main turn ends', async ($, on) => {
@@ -161,6 +208,103 @@ test('the tap keeps dripping while a subagent works after the main turn ends', a
   await $.turn.complete({ ...done, answer: 'found it', turnId: 'agent-1', agentId: 'a1' })
 
   ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /▪/ })).toBe(undefined)
+  await ui.unmount()
+})
+
+// The engine's state, stood in for: one value, versioned.
+const fakeState = (on: On) => {
+  let stored: { value: unknown; version: number } = { value: undefined, version: 0 }
+  on('state.get', () => ({ value: stored }))
+  on('state.set', (_, e) => {
+    stored = { value: e.value, version: stored.version + 1 }
+
+    return { value: { isSet: true, version: stored.version } }
+  })
+
+  return () => stored.value as { value: { sessionUl: number; liveUl: number; turnUl: number } } | undefined
+}
+
+const STEP = {
+  turnId: 't1',
+  index: 0,
+  model: 'claude-sonnet-5-5',
+  messageCount: 1,
+} as const
+
+test('a streamed response adds its usage once it stops', async ($, on) => {
+  const read = fakeState(on)
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('turn.step', async function* (_, e) {
+    yield { kind: 'text', index: 0, text: 'x'.repeat(4 * 200) }
+    yield {
+      kind: 'stop',
+      stopReason: 'end_turn',
+      usage: {
+        model: 'claude-sonnet-5-5',
+        input_tokens: 1000,
+        output_tokens: 500,
+        cache_creation_input_tokens: 2000,
+        cache_read_input_tokens: 100_000,
+      },
+    }
+
+    return { turnId: e.turnId, index: e.index, answer: 'done', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  const seen: string[] = []
+  for await (const chunk of $.turn.step(STEP)) {
+    seen.push(chunk.kind)
+    // 200 estimated output tokens at 5 x the model's rate show live before the stop.
+    if (chunk.kind === 'text') expect(read()?.value.liveUl).toBe(200 * 5 * rateFor(STEP.model))
+  }
+
+  expect(seen).toEqual(['text', 'stop'])
+  expect(read()?.value.sessionUl).toBe(11_000 * rateFor(STEP.model))
+  expect(read()?.value.turnUl).toBe(11_000 * rateFor(STEP.model))
+  expect(read()?.value.liveUl).toBe(0)
+})
+
+test('a response that reports no usage adds nothing and leaves no live figure', async ($, on) => {
+  const read = fakeState(on)
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('turn.step', async function* (_, e) {
+    yield { kind: 'text', index: 0, text: 'y'.repeat(4 * 100) }
+    yield { kind: 'stop', stopReason: null, usage: null }
+
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: null, usage: null }
+  })
+
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  for await (const _ of $.turn.step(STEP)) {
+    // drain
+  }
+
+  expect(read()?.value.sessionUl).toBe(0)
+  expect(read()?.value.liveUl).toBe(0)
+})
+
+test('a count that is not a number counts as zero', async () => {
+  const odd = {
+    input_tokens: Number.NaN,
+    output_tokens: 10,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+  }
+  expect(microlitresOf(odd, 'claude-sonnet-5-5')).toBe(10 * 5 * rateFor('claude-sonnet-5-5'))
+})
+
+test('a session start clears a turn whose end was never heard', async ($, on) => {
+  fakeState(on)
+  on('command.register', () => ({ value: { command: 'thirsty_claude' } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+
+  await $.turn.start({ text: 'go', turnId: 'orphan' })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /▪/ })).toBe(undefined)
   await ui.unmount()
 })

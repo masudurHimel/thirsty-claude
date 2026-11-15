@@ -12,51 +12,87 @@ const HOW_LABEL = 'Need insight?'
 const HOW_URL = 'https://github.com/masudurHimel/thirsty-claude#how-the-water-is-estimated'
 const SUBTITLE = 'what this chat costs in water'
 
+// Water per kilowatt-hour of IT energy, in litres: cooling at the site plus
+// the water behind the electricity, the way EcoLogits and drip compute it.
+// The on-site and overhead figures are the middle of the range EcoLogits
+// gives for Anthropic's AWS and Google hosts; the grid figure is the US
+// average. The README's Sources section has the references. Change them here.
+export const WUE_L_PER_KWH = 0.5 // on-site cooling, 0.13 to 0.99 across hosts
+export const PUE = 1.12 // power-usage effectiveness, 1.09 to 1.14
+export const EWIF_L_PER_KWH = 3.13 // US-average electricity water intensity
+export const WATER_L_PER_KWH = WUE_L_PER_KWH + PUE * EWIF_L_PER_KWH // about 4.0
+// The share of each figure that is water used at the data centre itself.
+export const ONSITE_SHARE = WUE_L_PER_KWH / WATER_L_PER_KWH // about 0.12
+
+// Energy per thousand weighted tokens for a reference model priced at $20 per
+// million output tokens. Other models scale by their output price, a proxy
+// for how much silicon a token moves; price is set by the provider, so the
+// proxy is rough and understates models priced for volume.
+export const REF_OUTPUT_USD = 20
+export const REF_WH_PER_K_WEIGHTED = 0.5
+// Microlitres per weighted token for the reference model: Wh per thousand
+// tokens times litres per kWh is millilitres per thousand, so microlitres each.
+export const REF_RATE_UL = REF_WH_PER_K_WEIGHTED * WATER_L_PER_KWH // about 2
+
 // How much a token of each kind costs, relative to one fresh input token.
-// Generating a token runs the whole model once; reading a cached prefix
-// barely touches it. Change the weights here.
+// Generating a token runs the whole model once; a cache write is a fresh
+// input plus storing it, at the 5-minute cache's price ratio. Cache reads are
+// priced per model below. Change the weights here.
 export const WEIGHTS = {
   input_tokens: 1,
   output_tokens: 5,
-  cache_creation_input_tokens: 1.1,
-  cache_read_input_tokens: 0.1,
+  cache_creation_input_tokens: 1.25,
 } as const
 
-// Microlitres of water per weighted token, all-in (data-centre cooling plus
-// power generation), by model family: a bigger model moves more silicon per
-// token. Matched on the model id; the first match wins, `default` otherwise.
-// Derived from Google's 0.26 mL per median Gemini prompt plus US-average
-// power-plant water; see the chat for sources. Change the rates here.
-export const RATES_UL: ReadonlyArray<readonly [family: string, ul: number]> = [
-  ['haiku', 0.5],
-  ['sonnet', 2],
-  ['opus', 5],
-  ['fable', 5],
-  ['mythos', 5],
+// Each model's output price in dollars per million tokens and its cache-read
+// price as a fraction of its input price, from Anthropic's price list.
+// Matched on the model id; the first match wins, `DEFAULT_MODEL` otherwise.
+export const MODELS: ReadonlyArray<readonly [match: string, outputUsd: number, cacheRead: number]> = [
+  ['fable-5-2', 40, 0.025],
+  ['mythos-5-2', 40, 0.025],
+  ['fable', 50, 0.025],
+  ['mythos', 50, 0.025],
+  ['opus-5-5', 20, 0.05],
+  ['opus', 25, 0.1],
+  ['sonnet-5-5', 10, 0.05],
+  ['sonnet-5', 10, 0.1],
+  ['sonnet', 15, 0.1],
+  ['haiku-5-5', 0.5, 0.1],
+  ['haiku', 5, 0.1],
 ]
-export const DEFAULT_RATE_UL = 2
+export const DEFAULT_MODEL = [REF_OUTPUT_USD, 0.1] as const
 
-export const rateFor = (model: string) => {
+const modelOf = (model: string) => {
   const id = model.toLowerCase()
-  const hit = RATES_UL.find(([family]) => id.includes(family))
+  const hit = MODELS.find(([match]) => id.includes(match))
 
-  return hit ? hit[1] : DEFAULT_RATE_UL
+  return hit ? { outputUsd: hit[1], cacheRead: hit[2] } : { outputUsd: DEFAULT_MODEL[0], cacheRead: DEFAULT_MODEL[1] }
 }
+
+// Microlitres of water per weighted token, all-in, for the model that answered.
+export const rateFor = (model: string) => (REF_RATE_UL * modelOf(model).outputUsd) / REF_OUTPUT_USD
+
+// The cache-read weight for the model that answered.
+export const cacheReadWeightFor = (model: string) => modelOf(model).cacheRead
 
 // What one response cost, in microlitres: each count by its weight, then by
 // the answering model's rate.
 export const microlitresOf = (usage: ModelUsage, model: string) => {
+  // A count that is not a finite number counts as zero, so one odd response
+  // cannot turn the totals into NaN for the rest of the session.
+  const n = (count: unknown) => (typeof count === 'number' && Number.isFinite(count) ? count : 0)
   const weighted =
-    usage.input_tokens * WEIGHTS.input_tokens +
-    usage.output_tokens * WEIGHTS.output_tokens +
-    usage.cache_creation_input_tokens * WEIGHTS.cache_creation_input_tokens +
-    usage.cache_read_input_tokens * WEIGHTS.cache_read_input_tokens
+    n(usage.input_tokens) * WEIGHTS.input_tokens +
+    n(usage.output_tokens) * WEIGHTS.output_tokens +
+    n(usage.cache_creation_input_tokens) * WEIGHTS.cache_creation_input_tokens +
+    n(usage.cache_read_input_tokens) * cacheReadWeightFor(model)
 
   return weighted * rateFor(model)
 }
 
 // The bucket holds this much before it overflows.
 const BUCKET_ML = 1000
+const BUCKET_LABEL = BUCKET_ML % 1000 === 0 ? `${BUCKET_ML / 1000} L` : `${BUCKET_ML} mL`
 
 // The terminal's drop steps one row this often while a turn runs.
 const FRAME_MS = 125
@@ -140,7 +176,7 @@ const bucketSvg = (fill: number, spill: number, busy: boolean) => {
     <!-- bucket -->
     <path d="M${left} ${top} L${left} ${bottom} Q${left} ${bottom + 6} ${left + 6} ${bottom + 6} L${right - 6} ${bottom + 6} Q${right} ${bottom + 6} ${right} ${bottom} L${right} ${top}" fill="none" stroke="#8a8f98" stroke-width="4" stroke-linejoin="round"/>
     <rect x="${left - 6}" y="${top - 4}" width="${right - left + 12}" height="6" rx="3" fill="#8a8f98"/>
-    <text x="${right + 8}" y="${top + 4}" font-size="9" fill="#8a8f98">1 L</text>
+    <text x="${right + 8}" y="${top + 4}" font-size="9" fill="#8a8f98">${BUCKET_LABEL}</text>
     ${overflow}
   </svg>`
 }
@@ -201,6 +237,10 @@ export const register: Register = on => {
       name: 'thirsty_claude',
       description: 'Open the Thirsty Claude water pane',
     })
+    // Nothing is running at a start (a reload runs this again), so a turn
+    // whose end was never heard cannot keep the tap dripping.
+    stopTicker()
+    await update($, usage, u => ({ ...u, active: [], busy: false, liveUl: 0 }))
 
     return next(e)
   })
@@ -221,7 +261,9 @@ export const register: Register = on => {
   // end, so the list never goes wrong.
   on('turn.start', async ($, e, next) => {
     await update($, usage, u => {
-      const active = [...(u.active ?? []).filter(id => id !== e.turnId), e.turnId]
+      // A new main-loop turn means the previous one is over, heard or not.
+      const stale = e.agentId ? [e.turnId] : [e.turnId, u.turnId]
+      const active = [...(u.active ?? []).filter(id => !stale.includes(id)), e.turnId]
       const main = e.agentId ? {} : { turnId: e.turnId, turnUl: 0, liveUl: 0 }
 
       return { ...u, ...main, active, busy: true }
@@ -247,29 +289,44 @@ export const register: Register = on => {
   on('turn.step', async function* ($, e, next) {
     // While the response streams, its text so far is guessed at four
     // characters a token, every one an output token of the step's model.
+    // Streams can overlap (a subagent's beside the main loop's), so each one
+    // adds and later removes only its own share of the live figure.
     const liveRate = WEIGHTS.output_tokens * rateFor(e.model)
     let chars = 0
     let shown = 0
+    let mine = 0
 
-    for await (const chunk of next(e)) {
-      if (chunk.kind === 'text' || chunk.kind === 'thinking') {
-        chars += chunk.text.length
-        const live = Math.round(chars / 4)
-        if (live - shown >= LIVE_STEP) {
-          shown = live
-          await update($, usage, u => ({ ...u, liveUl: live * liveRate }))
+    const shift = (to: number) => {
+      const delta = to - mine
+      mine = to
+
+      return (u: Usage) => ({ ...u, liveUl: Math.max(0, u.liveUl + delta) })
+    }
+
+    try {
+      for await (const chunk of next(e)) {
+        if (chunk.kind === 'text' || chunk.kind === 'thinking') {
+          chars += chunk.text.length
+          const live = Math.round(chars / 4)
+          if (live - shown >= LIVE_STEP) {
+            shown = live
+            await update($, usage, shift(live * liveRate))
+          }
+        } else if (chunk.kind === 'stop') {
+          const spent = chunk.usage ? microlitresOf(chunk.usage, chunk.usage.model) : 0
+          const settle = shift(0)
+          await update($, usage, u => ({
+            ...settle(u),
+            turnUl: u.turnUl + spent,
+            sessionUl: u.sessionUl + spent,
+          }))
         }
-      } else if (chunk.kind === 'stop') {
-        const spent = chunk.usage ? microlitresOf(chunk.usage, chunk.usage.model) : 0
-        await update($, usage, u => ({
-          ...u,
-          turnUl: u.turnUl + spent,
-          sessionUl: u.sessionUl + spent,
-          liveUl: 0,
-        }))
-      }
 
-      yield chunk
+        yield chunk
+      }
+    } finally {
+      // A stream cut short still gives its share back.
+      if (mine !== 0) await update($, usage, shift(0))
     }
   })
 
@@ -285,11 +342,12 @@ export const register: Register = on => {
     const fill = Math.min(1, sessionMl / BUCKET_ML)
     const spill = Math.max(0, sessionMl - BUCKET_ML) / BUCKET_ML
 
-    // The bucket for the session, a speech bubble for this prompt. The
-    // terminal gets one-cell glyphs: emoji take two cells there and misalign.
+    // The bucket for the session, a speech bubble for this prompt, a snowflake
+    // for the cooling water used at the data centre itself. The terminal gets
+    // one-cell glyphs: emoji take two cells there and misalign.
     const ICONS = isTerminal
-      ? { session: 'Σ', turn: '✎' }
-      : { session: '🪣', turn: '💬' }
+      ? { session: 'Σ', turn: '✎', onsite: '◦' }
+      : { session: '🪣', turn: '💬', onsite: '❄️' }
 
     const Row = (icon: string, label: string, text: string) => (
       <Box flexDirection="row">
@@ -313,7 +371,7 @@ export const register: Register = on => {
       return (
         <Svg
           source={bucketSvg(fill, spill, u.busy)}
-          alt={`A tap dripping into a 1 litre bucket that is ${Math.round(fill * 100)}% full`}
+          alt={`A tap dripping into a ${BUCKET_LABEL} bucket that is ${Math.round(fill * 100)}% full`}
           width={200}
           height={250}
           isInteractive
@@ -341,8 +399,8 @@ export const register: Register = on => {
     // footer. Other surfaces honour a row height too but not a percentage, and
     // their rows do not compare with a count of text lines, so the outer box
     // always takes the full height there.
-    const bodyRows = 2 + 4 + 8 + (spill > 0 ? 1 : 0) + 2
-    const footerRows = 3
+    const bodyRows = 2 + 4 + 8 + (spill > 0 ? 1 : 0) + 3
+    const footerRows = 2 + 1 // its two lines and the gap above them
     const fits = !isTerminal || rows >= bodyRows + footerRows
 
     return (
@@ -360,6 +418,7 @@ export const register: Register = on => {
           {!isTerminal && <Text> </Text>}
           {Row(ICONS.session, 'Session', `${tilde}≈ ${water(sessionMl)}`)}
           {Row(ICONS.turn, 'This prompt', `${tilde}≈ ${water(turnMl)}`)}
+          {Row(ICONS.onsite, 'On-site only', `${tilde}≈ ${water(sessionMl * ONSITE_SHARE)}`)}
         </Box>
         <Box flexDirection="column" width="100%" paddingTop={fits ? 0 : 2}>
           <Box width="100%" justifyContent="center">
