@@ -112,10 +112,10 @@ test('the pane opens on /thirsty_claude and not at session start', async ($, on)
   expect(opened).toBe(1)
 })
 
-test('the pane says how accurate it is and links to the method', async $ => {
+test('the pane states its range and links to the method', async $ => {
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
 
-  expect((await ui.find({ type: 'Text', text: /accurate/ }))?.text).toBe('estimate: about 60% accurate')
+  expect((await ui.find({ type: 'Text', text: /half to twice/ }))?.text).toBe('Actual use may range from half to twice this figure')
   const how = await ui.find({ type: 'Link' })
   expect(how?.text).toBe('Want to know how this is measured?')
   await ui.unmount()

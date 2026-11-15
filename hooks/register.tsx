@@ -7,7 +7,7 @@ const PANE = 'thirsty-claude'
 
 // The pane's heading and the line under it. Change the words here.
 const TITLE = 'THIRSTY CLAUDE'
-const ACCURACY_NOTE = 'estimate: about 60% accurate'
+const ACCURACY_NOTE = 'Actual use may range from half to twice this figure'
 const HOW_LABEL = 'Want to know how this is measured?'
 const HOW_URL = 'https://github.com/masudurHimel/thirsty-claude#how-the-water-is-estimated'
 const SUBTITLE = 'what this chat costs in water'

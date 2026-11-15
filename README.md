@@ -13,7 +13,7 @@ A Claude Code mod that shows, beside the chat, how much water your session has c
 🪣  Session       ≈ 0.37 L
 💬  This prompt   ≈ 25 mL
 
-   estimate: about 60% accurate
+   Actual use may range from half to twice this figure
    Want to know how this is measured?
 ```
 
@@ -61,7 +61,7 @@ Then `/reload-plugins` in any open session. To have Claude Code do this on its o
 
 ## How the water is estimated
 
-**Short version:** nothing here is measured. Anthropic publishes no energy or water figures for Claude: its October 2026 S-1 filing and Public Benefit Report carry none [[6]](#sources), and independent trackers report the same gap [[5]](#sources). The mod takes the token counts the API reports for every response, weights them by how much work each kind of token causes, multiplies by a per-model water rate derived from other providers' disclosures [[1]](#sources) [[2]](#sources) [[3]](#sources), and adds them up. The result is an order-of-magnitude estimate, about 60% accurate, as explained below.
+**Short version:** nothing here is measured. Anthropic publishes no energy or water figures for Claude: its October 2026 S-1 filing and Public Benefit Report carry none [[6]](#sources), and independent trackers report the same gap [[5]](#sources). The mod takes the token counts the API reports for every response, weights them by how much work each kind of token causes, multiplies by a per-model water rate derived from other providers' disclosures [[1]](#sources) [[2]](#sources) [[3]](#sources), and adds them up. The result is an estimate: actual use may range from half to twice the figure shown, as explained below.
 
 ### Where water goes
 
@@ -113,13 +113,13 @@ Without the weights, the same step would count 103,500 tokens at a flat rate and
 
 ### How accurate it is
 
-About 60 out of 100. Expect the figure to be within roughly ±50% of the truth most of the time, and within 2x nearly always. The remaining uncertainty splits into:
+Actual use may range from half to twice the figure shown. That range comes from propagating the plausible range of each input (energy per token, cooling water per kWh, grid water per kWh, the token weights) through the formula above; it is a judgement about the spread, not a measured error, since no ground truth for Claude exists. The uncertainty splits into:
 
-| Source of error | Rough share | Who can close it |
+| Source of error | Rough weight | Who can close it |
 |---|---|---|
-| Energy per token for Claude specifically | 15 points | Only Anthropic, by publishing per-query figures |
-| Water intensity at the actual data centre | 15 points | Anthropic or the cloud host; known only if traffic runs through Bedrock or Vertex in a named region |
-| The weights and model-family rates | 10 points | Better measurements of inference; the constants are tunable |
+| Energy per token for Claude specifically | largest | Only Anthropic, by publishing per-query figures |
+| Water intensity at the actual data centre | large | Anthropic or the cloud host; known only if traffic runs through Bedrock or Vertex in a named region |
+| The weights and model-family rates | smaller | Better measurements of inference; the constants are tunable |
 
 Third-party estimates for Claude exist [[5]](#sources) [[6]](#sources) and land in the same ballpark as this mod: converting Projet Celsius's 2.8 Wh per 1,000 written tokens with Google's on-site water [[1]](#sources) and the power-plant water of [[4]](#sources) gives roughly 12 µL per Opus-class output token all-in, against this mod's 25 µL. They are modelled, not measured, so agreement between them is reassuring but not proof.
 

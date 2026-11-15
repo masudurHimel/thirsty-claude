@@ -1,6 +1,6 @@
 {
   "name": "thirsty_claude",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "A pane beside the chat: a tap dripping into a 1 L bucket that shows the water this session's tokens cost.",
   "author": { "name": "masudurHimel" },
   "license": "MIT",
