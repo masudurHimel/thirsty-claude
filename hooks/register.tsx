@@ -319,16 +319,21 @@ export const register: Register = on => {
         </Box>
       )
 
-    // Rows the drawing takes: greeting, gaps, tap and bucket, captions; and
-    // the footer's two lines with a gap above them.
-    const body = isTerminal ? 2 + 4 + 8 + (spill > 0 ? 1 : 0) + 2 : 2 + 1 + 14 + 1 + 2
-    const footer = 3
-    const fits = rows >= body + footer
+    // The terminal seats the pane in a fixed number of rows: with room for
+    // the whole drawing, the body is centred in what the footer leaves and the
+    // footer sits at the bottom; without, everything stacks from the top with a
+    // gap before the footer. Other surfaces give the pane a real height, so
+    // the outer box takes all of it and the footer is always at the bottom.
+    const bodyRows = 2 + 4 + 8 + (spill > 0 ? 1 : 0) + 2
+    const footerRows = 3
+    const fits = !isTerminal || rows >= bodyRows + footerRows
 
-    // With room, the body is centred in what the footer leaves and the footer
-    // sits at the bottom; without, everything stacks from the top.
     return (
-      <Box flexDirection="column" width="100%" height={fits ? rows : undefined}>
+      <Box
+        flexDirection="column"
+        width="100%"
+        height={isTerminal ? (fits ? rows : undefined) : '100%'}
+      >
         <Box
           flexDirection="column"
           alignItems="center"
