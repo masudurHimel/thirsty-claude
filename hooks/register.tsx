@@ -7,6 +7,9 @@ const PANE = 'thirsty-claude'
 
 // The pane's heading and the line under it. Change the words here.
 const TITLE = 'THIRSTY CLAUDE'
+const ACCURACY_NOTE = 'estimate: about 60% accurate'
+const HOW_LABEL = 'Want to know how this is measured?'
+const HOW_URL = 'https://github.com/masudurHimel/thirsty-claude#how-the-water-is-estimated'
 const SUBTITLE = 'what this chat costs in water'
 
 // How much a token of each kind costs, relative to one fresh input token.
@@ -176,12 +179,13 @@ const terminalRows = (fill: number, spill: number, busy: boolean, frame: number)
 }
 
 export const register: Register = on => {
+  // The pane opens only when asked: /thirsty_claude. Counting runs from the
+  // session's start regardless, so the bucket is right whenever it opens.
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'thirsty_claude',
-      description: 'Reopen the Thirsty Claude water pane',
+      description: 'Open the Thirsty Claude water pane',
     })
-    void $.ui.open({ id: PANE, title: 'Water' })
 
     return next(e)
   })
@@ -191,7 +195,7 @@ export const register: Register = on => {
 
     return {
       text: isPlaced
-        ? 'Thirsty Claude is back.'
+        ? 'Thirsty Claude is open.'
         : 'Thirsty Claude opened, but this surface has nowhere to show it.',
     }
   })
@@ -255,7 +259,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Text, Link } = $.ui.resolve(e)
     const isTerminal = e.surface === 'terminal'
     if (isTerminal) terminalDrewAt = Date.now()
     const u = await read($, usage)
@@ -314,7 +318,7 @@ export const register: Register = on => {
       )
 
     // Rows the drawing takes: greeting, gaps, tap and bucket, captions.
-    const needed = isTerminal ? 2 + 4 + 8 + (spill > 0 ? 1 : 0) + 2 : 2 + 1 + 14 + 1 + 2
+    const needed = (isTerminal ? 2 + 4 + 8 + (spill > 0 ? 1 : 0) + 2 : 2 + 1 + 14 + 1 + 2) + 3
     const fits = rows >= needed
 
     return (
@@ -332,6 +336,11 @@ export const register: Register = on => {
         {!isTerminal && <Text> </Text>}
         {Row(ICONS.session, 'Session', `${tilde}≈ ${water(sessionMl)}`)}
         {Row(ICONS.turn, 'This prompt', `${tilde}≈ ${water(turnMl)}`)}
+        <Text> </Text>
+        <Text dimColor size="caption">
+          {ACCURACY_NOTE}
+        </Text>
+        <Link href={HOW_URL} label={HOW_LABEL} />
       </Box>
     )
   })
