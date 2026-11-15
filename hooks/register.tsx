@@ -319,21 +319,19 @@ export const register: Register = on => {
         </Box>
       )
 
-    // The terminal seats the pane in a fixed number of rows: with room for
-    // the whole drawing, the body is centred in what the footer leaves and the
-    // footer sits at the bottom; without, everything stacks from the top with a
-    // gap before the footer. Other surfaces give the pane a real height, so
-    // the outer box takes all of it and the footer is always at the bottom.
+    // `bodyRows` is the height the surface gave the pane's body. The terminal
+    // seats the pane in that many rows: with room for the whole drawing, the
+    // body is centred in what the footer leaves and the footer sits at the
+    // bottom; without, everything stacks from the top with a gap before the
+    // footer. Other surfaces honour a row height too but not a percentage, and
+    // their rows do not compare with a count of text lines, so the outer box
+    // always takes the full height there.
     const bodyRows = 2 + 4 + 8 + (spill > 0 ? 1 : 0) + 2
     const footerRows = 3
     const fits = !isTerminal || rows >= bodyRows + footerRows
 
     return (
-      <Box
-        flexDirection="column"
-        width="100%"
-        height={isTerminal ? (fits ? rows : undefined) : '100%'}
-      >
+      <Box flexDirection="column" width="100%" height={fits ? rows : undefined}>
         <Box
           flexDirection="column"
           alignItems="center"
