@@ -191,6 +191,12 @@ Sources 1 to 3 are company disclosures. Source 4 is peer-reviewed academic work.
 - **Independent cross-checks.** Estimates that used different methods, Projet Celsius per token [[5]](#sources) and CLEER per chat [[6]](#sources), land within about 2x of this mod. That is consistency, not proof.
 - **What would settle it.** A per-query figure from Anthropic, as Google published for Gemini. The mod's prediction for a median text prompt on a Sonnet-class model is on the order of 1 to 3 mL all-in; if Anthropic publishes a number, that is the line to check it against.
 
+### Does the mod itself use tokens?
+
+Almost none. The mod never calls the model, never changes the system prompt, and its hook on the model's stream only reads the chunks and passes them on unchanged. The pane, the drip timer and the stored totals live in the engine, which the model never sees.
+
+The one exception is the reply to `/thirsty_claude`, "Thirsty Claude is open." Claude Code keeps a plugin command's output in the transcript, so each time you open the pane about 20 tokens join the context and are re-read as cache reads on later steps. Across a session that is a fraction of a drop.
+
 ### Why does the count start at zero in every session?
 
 The mod stores its totals in the session's state, which Claude Code keeps per session. A new session starts fresh. Closing and reopening the pane within a session does not reset it.
