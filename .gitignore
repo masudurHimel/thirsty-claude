@@ -9,3 +9,6 @@
 *.log
 
 node_modules/
+
+# Source recordings: only the converted GIF is committed.
+asset/*.mov

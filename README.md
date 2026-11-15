@@ -2,6 +2,8 @@
 
 A Claude Code mod that shows, beside the chat, how much water your session has cost: a tap dripping into a one-litre bucket. The bucket fills as tokens are spent, the tap drips while a reply is running, and past one litre the water spills over the rim.
 
+![Thirsty Claude: the pane opens beside the chat and the tap drips into the bucket while a reply runs](asset/demo.gif)
+
 ```
       THIRSTY CLAUDE
   what this chat costs in water
