@@ -281,8 +281,10 @@ export const register: Register = on => {
         <Box width={isTerminal ? 3 : 4}>
           <Text>{icon}</Text>
         </Box>
-        <Box width={13}>
-          <Text dimColor>{label}</Text>
+        <Box width={14}>
+          <Text dimColor wrap="truncate-end">
+            {label}
+          </Text>
         </Box>
         <Box width={12} justifyContent="flex-end">
           <Text color="cyan">{text}</Text>
@@ -317,30 +319,38 @@ export const register: Register = on => {
         </Box>
       )
 
-    // Rows the drawing takes: greeting, gaps, tap and bucket, captions.
-    const needed = (isTerminal ? 2 + 4 + 8 + (spill > 0 ? 1 : 0) + 2 : 2 + 1 + 14 + 1 + 2) + 3
-    const fits = rows >= needed
+    // Rows the drawing takes: greeting, gaps, tap and bucket, captions; and
+    // the footer's two lines with a gap above them.
+    const body = isTerminal ? 2 + 4 + 8 + (spill > 0 ? 1 : 0) + 2 : 2 + 1 + 14 + 1 + 2
+    const footer = 3
+    const fits = rows >= body + footer
 
+    // With room, the body is centred in what the footer leaves and the footer
+    // sits at the bottom; without, everything stacks from the top.
     return (
-      <Box
-        flexDirection="column"
-        width="100%"
-        height={fits ? rows : undefined}
-        alignItems="center"
-        justifyContent={fits ? 'center' : 'flex-start'}
-      >
-        <Text bold>{TITLE}</Text>
-        <Text dimColor>{SUBTITLE}</Text>
-        {!isTerminal && <Text> </Text>}
-        {bucket}
-        {!isTerminal && <Text> </Text>}
-        {Row(ICONS.session, 'Session', `${tilde}≈ ${water(sessionMl)}`)}
-        {Row(ICONS.turn, 'This prompt', `${tilde}≈ ${water(turnMl)}`)}
-        <Text> </Text>
-        <Text dimColor size="caption">
-          {ACCURACY_NOTE}
-        </Text>
-        <Link href={HOW_URL} label={HOW_LABEL} />
+      <Box flexDirection="column" width="100%" height={fits ? rows : undefined}>
+        <Box
+          flexDirection="column"
+          alignItems="center"
+          justifyContent={fits ? 'center' : 'flex-start'}
+          flexGrow={fits ? 1 : 0}
+        >
+          <Text bold>{TITLE}</Text>
+          <Text dimColor>{SUBTITLE}</Text>
+          {!isTerminal && <Text> </Text>}
+          {bucket}
+          {!isTerminal && <Text> </Text>}
+          {Row(ICONS.session, 'Session', `${tilde}≈ ${water(sessionMl)}`)}
+          {Row(ICONS.turn, 'This prompt', `${tilde}≈ ${water(turnMl)}`)}
+        </Box>
+        <Box flexDirection="column" alignItems="center" paddingTop={fits ? 0 : 2}>
+          <Text dimColor size="caption">
+            {ACCURACY_NOTE}
+          </Text>
+          <Text size="caption">
+            <Link href={HOW_URL} label={HOW_LABEL} />
+          </Text>
+        </Box>
       </Box>
     )
   })
