@@ -12,12 +12,13 @@ A Claude Code mod that shows, beside the chat, how much water your session has c
 
 🪣  Session       ≈ 0.37 L
 💬  This prompt   ≈ 25 mL
+❄️  On-site only  ≈ 46 mL
 
    accuracy: ±1 order of 2
    Need insight?
 ```
 
-The desktop app draws an animated SVG. A terminal session gets a box-character bucket with a falling drop.
+The desktop app draws an animated SVG. A terminal session gets a box-character bucket with a falling drop. The recording above predates the "On-site only" row.
 
 ## Install
 
@@ -160,7 +161,7 @@ Without the weights, the same step would count 103,500 tokens at a flat rate and
 
 ### How accurate it is
 
-The pane's footer says `accuracy: ±1 order of 2`: actual use may range from half to twice the figure shown. That range comes from propagating the plausible range of each input (energy per token, cooling water per kWh, grid water per kWh, the token weights) through the formula above, and from the one calibration point: the measured workload of [[8]](#sources) sits within a factor of two of this mod's figure for it. It is a judgement about the spread, not a measured error, since Anthropic publishes no ground truth. The uncertainty splits into:
+The pane's footer says `accuracy: ±1 order of 2`: actual use may range from half to twice the figure shown. That range comes from propagating the plausible range of each input (energy per token, cooling water per kWh, grid water per kWh, the token weights) through the formula above, and from the one calibration point: the workload of [[8]](#sources) sits within a factor of two of this mod's figure for it. It is a judgement about the spread, not a measured error, since Anthropic publishes no ground truth. The range is consistent with that one point, not validated by it: what [[8]](#sources) measured is the token log, and the 170 kWh comes from applying per-token energy figures to it, with a range of its own. No measurement of water for any Claude request exists, so the water half rests on the host assumption alone; a request served from a dry-cooled site on a hydro grid could use several times less, one from an evaporatively cooled site on a thermal grid several times more. Taken together, the true spread is probably a little wider than the footer's factor of two. The uncertainty splits into:
 
 | Source of error | Rough weight | Who can close it |
 |---|---|---|
@@ -212,7 +213,8 @@ Sources 1 to 3 are company disclosures. Source 4 is peer-reviewed academic work.
 
 - **It is a judgement, not a measurement.** Nobody outside Anthropic can measure Claude's water use, because Anthropic publishes no energy or water figures. The range says how far off the estimate is likely to be, not that it has been checked.
 - **What it rests on.** Four inputs with published or reasoned ranges: energy per token from benchmarks and disclosures [[1]](#sources) [[2]](#sources) [[7]](#sources) [[10]](#sources), cooling water and overhead for Anthropic's hosts [[11]](#sources), grid water per kWh from peer-reviewed work [[4]](#sources), and token weights from Anthropic's own price ratios [[12]](#sources). Propagating those ranges through the formula gives a spread of roughly a factor of two either way.
-- **One measurement.** Hausfather's eight-week Claude Code log [[8]](#sources) is the only measured figure for this kind of workload. The mod's estimate for it lands inside his range: about 1.9 times his central value on Opus 4.x, about 1.1 times on Opus 5.5.
+- **One measurement, of tokens.** Hausfather's eight-week Claude Code log [[8]](#sources) is the only external figure for this kind of workload. The mod's estimate for it lands inside his range: about 1.9 times his central value on Opus 4.x, about 1.1 times on Opus 5.5. His energy figure is modelled from the measured token log, so this is a check against another estimate, not against a meter.
+- **Is the range validated, then?** No. It is consistent with one point on the energy side and unchecked on the water side, where no measurement for Claude exists. Read the footer as a judgement that may be a little optimistic, not as a tested error bar.
 - **Independent cross-checks.** Estimates that used different methods, drip [[10]](#sources), EcoLogits [[11]](#sources), Projet Celsius per token [[5]](#sources) and CLEER per chat [[6]](#sources), land within about 2x of this mod. That is consistency, not proof.
 - **What would settle it.** A per-query figure from Anthropic, as Google published for Gemini. The mod's prediction for a median text prompt on Sonnet 5.5 is about 2 mL all-in and 0.2 mL on site; if Anthropic publishes a number, that is the line to check it against.
 
