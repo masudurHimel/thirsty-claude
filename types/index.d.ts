@@ -7,8 +7,10 @@ export type Usage = {
   sessionUl: number
   /** A rough figure for the response still streaming, in microlitres. */
   liveUl: number
-  /** True while a main-loop turn is running: the tap drips. */
+  /** True while any turn is running, the main loop's or a subagent's: the tap drips. */
   busy: boolean
+  /** The ids of the turns running now; `busy` is whether there are any. */
+  active?: string[]
   /** Ticks while a turn runs, driving the terminal's drop; absent before the first. */
   frame?: number
 }

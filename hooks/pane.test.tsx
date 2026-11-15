@@ -115,9 +115,9 @@ test('the pane opens on /thirsty_claude and not at session start', async ($, on)
 test('the pane states its range and links to the method', async $ => {
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
 
-  expect((await ui.find({ type: 'Text', text: /half to twice/ }))?.text).toBe('Actual use may range from half to twice this figure')
+  expect((await ui.find({ type: 'Text', text: /order of 2/ }))?.text).toBe('accuracy: ±1 order of 2')
   const how = await ui.find({ type: 'Link' })
-  expect(how?.text).toBe('Want to know how this is measured?')
+  expect(how?.text).toBe('Need insight?')
   await ui.unmount()
 })
 
@@ -134,4 +134,33 @@ test('a response is weighted by token kind and rated by model', async () => {
   expect(microlitresOf(step, 'claude-haiku-5-5')).toBe(15_700 * 0.5)
   expect(microlitresOf(step, 'claude-opus-5-5')).toBe(15_700 * 5)
   expect(rateFor('something-unknown')).toBe(2)
+})
+
+test('the tap keeps dripping while a subagent works after the main turn ends', async ($, on) => {
+  // The engine's state, stood in for: one value, versioned.
+  let stored: { value: unknown; version: number } = { value: undefined, version: 0 }
+  on('state.get', () => ({ value: stored }))
+  on('state.set', (_, e) => {
+    stored = { value: e.value, version: stored.version + 1 }
+
+    return { value: { isSet: true, version: stored.version } }
+  })
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('turn.complete', (_, e) => ({ text: e.answer }))
+
+  const done = { reason: 'answer', durationMs: 1, isAborted: false, category: null, explanation: null } as const
+
+  await $.turn.start({ text: 'go', turnId: 'main-1' })
+  await $.turn.start({ text: 'look', turnId: 'agent-1', agentId: 'a1' })
+  await $.turn.complete({ ...done, answer: 'handed off', turnId: 'main-1' })
+
+  let ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /▪/ })) !== undefined).toBe(true)
+  await ui.unmount()
+
+  await $.turn.complete({ ...done, answer: 'found it', turnId: 'agent-1', agentId: 'a1' })
+
+  ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /▪/ })).toBe(undefined)
+  await ui.unmount()
 })

@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { Register, ModelUsage } from 'claude-code'
+import type { Register, ModelUsage, EngineInterface } from 'claude-code'
 
 import type { Usage } from '../types'
 
@@ -7,8 +7,8 @@ const PANE = 'thirsty-claude'
 
 // The pane's heading and the line under it. Change the words here.
 const TITLE = 'THIRSTY CLAUDE'
-const ACCURACY_NOTE = 'Actual use may range from half to twice this figure'
-const HOW_LABEL = 'Want to know how this is measured?'
+const ACCURACY_NOTE = 'accuracy: ±1 order of 2'
+const HOW_LABEL = 'Need insight?'
 const HOW_URL = 'https://github.com/masudurHimel/thirsty-claude#how-the-water-is-estimated'
 const SUBTITLE = 'what this chat costs in water'
 
@@ -178,6 +178,21 @@ const terminalRows = (fill: number, spill: number, busy: boolean, frame: number)
   return lines
 }
 
+// The frame ticker: runs while any turn does, writing a frame only when a
+// terminal is watching, so a desktop-only session is not redrawn 8x a second.
+const startTicker = ($: EngineInterface) => {
+  if (ticker) return
+  ticker = $.clock.every(FRAME_MS, () => {
+    if (Date.now() - terminalDrewAt > WATCHING_MS) return
+    void update($, usage, u => ({ ...u, frame: (u.frame ?? 0) + 1 }))
+  })
+}
+
+const stopTicker = () => {
+  ticker?.cancel()
+  ticker = null
+}
+
 export const register: Register = on => {
   // The pane opens only when asked: /thirsty_claude. Counting runs from the
   // session's start regardless, so the bucket is right whenever it opens.
@@ -200,31 +215,31 @@ export const register: Register = on => {
     }
   })
 
+  // The tap drips while any turn runs: the main loop's, or a subagent's that
+  // keeps working after the main turn has ended. `active` holds the ids of
+  // the turns under way; a turn whose start was not heard is ignored at its
+  // end, so the list never goes wrong.
   on('turn.start', async ($, e, next) => {
-    if (!e.agentId) {
-      await update($, usage, u => ({
-        ...u,
-        turnId: e.turnId,
-        turnUl: 0,
-        liveUl: 0,
-        busy: true,
-      }))
-      ticker?.cancel()
-      ticker = $.clock.every(FRAME_MS, () => {
-        if (Date.now() - terminalDrewAt > WATCHING_MS) return
-        void update($, usage, u => ({ ...u, frame: (u.frame ?? 0) + 1 }))
-      })
-    }
+    await update($, usage, u => {
+      const active = [...(u.active ?? []).filter(id => id !== e.turnId), e.turnId]
+      const main = e.agentId ? {} : { turnId: e.turnId, turnUl: 0, liveUl: 0 }
+
+      return { ...u, ...main, active, busy: true }
+    })
+    startTicker($)
 
     return next(e)
   })
 
   on('turn.complete', async ($, e, next) => {
-    if (!e.agentId) {
-      ticker?.cancel()
-      ticker = null
-      await update($, usage, u => ({ ...u, liveUl: 0, busy: false }))
-    }
+    let busy = true
+    await update($, usage, u => {
+      const active = (u.active ?? []).filter(id => id !== e.turnId)
+      busy = active.length > 0
+
+      return { ...u, active, busy, liveUl: busy ? u.liveUl : 0 }
+    })
+    if (!busy) stopTicker()
 
     return next(e)
   })
@@ -346,13 +361,17 @@ export const register: Register = on => {
           {Row(ICONS.session, 'Session', `${tilde}≈ ${water(sessionMl)}`)}
           {Row(ICONS.turn, 'This prompt', `${tilde}≈ ${water(turnMl)}`)}
         </Box>
-        <Box flexDirection="column" alignItems="center" paddingTop={fits ? 0 : 2}>
-          <Text dimColor size="caption">
-            {ACCURACY_NOTE}
-          </Text>
-          <Text size="caption">
-            <Link href={HOW_URL} label={HOW_LABEL} />
-          </Text>
+        <Box flexDirection="column" width="100%" paddingTop={fits ? 0 : 2}>
+          <Box width="100%" justifyContent="center">
+            <Text dimColor size="caption">
+              {ACCURACY_NOTE}
+            </Text>
+          </Box>
+          <Box width="100%" justifyContent="center">
+            <Text size="caption">
+              <Link href={HOW_URL} label={HOW_LABEL} />
+            </Text>
+          </Box>
         </Box>
       </Box>
     )

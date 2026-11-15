@@ -13,8 +13,8 @@ A Claude Code mod that shows, beside the chat, how much water your session has c
 🪣  Session       ≈ 0.37 L
 💬  This prompt   ≈ 25 mL
 
-   Actual use may range from half to twice this figure
-   Want to know how this is measured?
+   accuracy: ±1 order of 2
+   Need insight?
 ```
 
 The desktop app draws an animated SVG. A terminal session gets a box-character bucket with a falling drop.
@@ -143,7 +143,7 @@ Without the weights, the same step would count 103,500 tokens at a flat rate and
 
 ### How accurate it is
 
-Actual use may range from half to twice the figure shown. That range comes from propagating the plausible range of each input (energy per token, cooling water per kWh, grid water per kWh, the token weights) through the formula above; it is a judgement about the spread, not a measured error, since no ground truth for Claude exists. The uncertainty splits into:
+The pane's footer says `accuracy: ±1 order of 2`: actual use may range from half to twice the figure shown. That range comes from propagating the plausible range of each input (energy per token, cooling water per kWh, grid water per kWh, the token weights) through the formula above; it is a judgement about the spread, not a measured error, since no ground truth for Claude exists. The uncertainty splits into:
 
 | Source of error | Rough weight | Who can close it |
 |---|---|---|
