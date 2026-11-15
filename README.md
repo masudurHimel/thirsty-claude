@@ -144,6 +144,31 @@ All constants sit at the top of `hooks/register.tsx`: `WEIGHTS`, `RATES_UL`, `DE
 
 Sources 1 to 3 are company disclosures. Source 4 is peer-reviewed academic work. Sources 5 and 6 are third-party modelling and reporting, not audited.
 
+## FAQ
+
+### Why is it showing so much water?
+
+- **It counts everything the session does, not just your typed prompts.** Every model response is counted: each tool-call step, each file read, each subagent. One prompt in a coding session can be dozens of responses.
+- **Every response re-reads the whole conversation.** A long session carries hundreds of thousands of tokens of context into every step. Cache reads are charged at a tenth of a fresh token, but there are so many that they still add up.
+- **Output is charged five times a fresh input token**, and reasoning tokens count as output. A reply that thought for a few thousand hidden tokens costs more than the visible answer suggests.
+- **The rate is all-in.** Roughly three quarters of each figure is water used to generate the electricity, not water at the data centre. On-site cooling alone would be about a quarter of what the pane shows.
+- **Scale check.** A full day of agentic work on an Opus-class model can reach 10 to 15 litres. That is about two minutes of a shower, and under one percent of the water behind a single beef burger. It looks large only because it is honest about the total, where a "per prompt" figure is not.
+
+### How do you know the real figure is within half to twice this?
+
+- **It is a judgement, not a measurement.** Nobody outside Anthropic can measure Claude's water use, because Anthropic publishes no energy or water figures. The range says how far off the estimate is likely to be, not that it has been checked.
+- **What it rests on.** Four inputs with published or reasoned ranges: energy per token from Google's and OpenAI's disclosures [[1]](#sources) [[2]](#sources) [[3]](#sources), cooling water per kWh from Google's fleet figure [[1]](#sources), grid water per kWh from peer-reviewed work [[4]](#sources), and token weights from how inference works. Propagating those ranges through the formula gives a spread of roughly a factor of two either way.
+- **Independent cross-checks.** Estimates that used different methods, Projet Celsius per token [[5]](#sources) and CLEER per chat [[6]](#sources), land within about 2x of this mod. That is consistency, not proof.
+- **What would settle it.** A per-query figure from Anthropic, as Google published for Gemini. The mod's prediction for a median text prompt on a Sonnet-class model is on the order of 1 to 3 mL all-in; if Anthropic publishes a number, that is the line to check it against.
+
+### Why does the count start at zero in every session?
+
+The mod stores its totals in the session's state, which Claude Code keeps per session. A new session starts fresh. Closing and reopening the pane within a session does not reset it.
+
+### Can I change the rates?
+
+Yes. `WEIGHTS`, `RATES_UL`, `DEFAULT_RATE_UL`, `BUCKET_ML` and `ACCURACY_NOTE` are constants at the top of `hooks/register.tsx`. Edit them, run `claude plugin test .`, and reload.
+
 ## Development
 
 Run from a checkout without installing:
